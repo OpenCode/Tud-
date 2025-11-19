@@ -2,6 +2,12 @@
 
 **Tudù** è una semplice applicazione di **ToDo List** composta da due servizi: un **Backend API** e un **Frontend Web**.
 
+![image](https://img.shields.io/badge/fastapi-109989?style=for-the-badge&logo=FASTAPI&logoColor=white)
+![image](https://img.shields.io/badge/Vue%20js-35495E?style=for-the-badge&logo=vuedotjs&logoColor=4FC08D)
+![image](https://img.shields.io/badge/Nginx-009639?style=for-the-badge&logo=nginx&logoColor=white)
+![image](https://img.shields.io/badge/Sqlite-003B57?style=for-the-badge&logo=sqlite&logoColor=white)
+
+
 | Componente | Tecnologia | Porta |
 | :--- | :--- | :--- |
 | **Backend** | FastAPI (Python) + SQLAlchemy (SQLite) | `8000` |
@@ -16,6 +22,8 @@ L'applicazione permette di gestire una lista di attività (tasks):
   * **Modifica Task:** Aggiornamento dello stato di completamento (toggle).
   * **Elimina Task:** Rimozione di un task specifico.
   * **Persistenza Dati:** I task vengono salvati in un database **SQLite** (`tudu.db`) gestito da SQLAlchemy.
+
+![Tudù Preview](readme/tudu.png?raw=true "Preview")
 
 -----
 
@@ -111,7 +119,6 @@ Dopo ogni sviluppo è consigliata l'esecuzione dei test per evitare regressioni.
 ### 1\. Attiva il Virtual Environment
 
 ```bash
-```
 source venv/bin/activate (per Linux o MacOS)
 venv\Scripts\activate (per Windows)
 ```
@@ -121,6 +128,3 @@ venv\Scripts\activate (per Windows)
 ```bash
 ./venv/bin/pytest
 ```
-```
-```
-

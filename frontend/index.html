@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tudù</title>
+    
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        .completed-line {
+            text-decoration: line-through;
+            color: #9ca3af;
+        }
+        /* Animazione semplice */
+        .fade-enter-active, .fade-leave-active {
+            transition: opacity 0.5s;
+        }
+        .fade-enter-from, .fade-leave-to {
+            opacity: 0;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen font-sans">
+
+    <div id="app" class="container mx-auto px-4 py-10 max-w-2xl">
+        
+        <div class="text-center mb-10">
+            <h1 class="text-4xl font-bold text-indigo-600 mb-2">Tudù</h1>
+            <p class="text-gray-500">ToDo List created with FastAPI, Vue.js and <3</p>
+        </div>
+
+        <div class="bg-white p-6 rounded-lg shadow-md mb-6">
+            <form @submit.prevent="addTask" class="space-y-3">
+                
+                <input 
+                    v-model="newTaskTitle" 
+                    type="text" 
+                    placeholder="Titolo del task (es. Fare la spesa)" 
+                    class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 transition"
+                    required
+                >
+
+                <textarea 
+                    v-model="newTaskDescription" 
+                    placeholder="Descrizione (es. Comprare latte di soia, pane, tofu...)"
+                    rows="2"
+                    class="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 transition resize-none"
+                ></textarea>
+
+                <div class="flex justify-end">
+                    <button 
+                        type="submit" 
+                        class="bg-indigo-600 text-white px-6 py-3 rounded-lg hover:bg-indigo-700 transition font-semibold disabled:opacity-50"
+                        :disabled="loading || !newTaskTitle.trim()"
+                    >
+                        <i class="fas fa-plus mr-2"></i> Aggiungi Task
+                    </button>
+                </div>
+            </form>
+        </div>
+
+        <div v-if="apiError" class="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative mb-6" role="alert">
+            <strong class="font-bold mr-2">Errore API!</strong>
+            <span class="block sm:inline">{{ apiError }}</span>
+            <span @click="apiError = ''" class="absolute top-0 bottom-0 right-0 px-4 py-3 cursor-pointer">
+                <i class="fas fa-times"></i>
+            </span>
+        </div>
+        <div class="flex justify-between items-center mb-4 px-2">
+            <span class="text-gray-600 font-medium">
+                <template v-if="currentFilter === 'active' || currentFilter === 'all'">
+                    {{ activeCount }} task da completare
+                </template>
+            </span>
+            <div class="flex bg-white rounded-lg shadow-sm p-1">
+                <button 
+                    v-for="f in filters"
+                    :key="f"
+                    @click="changeFilter(f)"
+                    :class="['px-4 py-1 rounded-md text-sm transition', currentFilter === f ? 'bg-indigo-100 text-indigo-700 font-bold' : 'text-gray-500 hover:text-gray-700']"
+                >
+                    {{ labels[f] }}
+                </button>
+            </div>
+        </div>
+
+        <div class="space-y-3">
+            <div v-if="loading && tasks.length === 0" class="text-center py-10 text-gray-500">
+                <i class="fas fa-spinner fa-spin fa-2x"></i>
+                <p class="mt-2">Caricamento...</p>
+            </div>
+
+            <div v-else-if="filteredTasks.length === 0" class="text-center py-10 bg-white rounded-lg shadow-sm border-dashed border-2 border-gray-300">
+                <p class="text-gray-400">Nessun task trovato qui!</p>
+            </div>
+
+            <transition-group name="fade">
+                <div 
+                    v-for="task in filteredTasks" 
+                    :key="task.id" 
+                    class="bg-white p-4 rounded-lg shadow-sm flex items-center justify-between group hover:shadow-md transition border-l-4"
+                    :class="task.completed ? 'border-green-500 bg-gray-50' : 'border-indigo-500'"
+                >
+                    <div class="flex items-center gap-3 flex-1">
+                        <button 
+                            @click="toggleTask(task)"
+                            class="w-6 h-6 rounded-full border-2 flex items-center justify-center transition"
+                            :class="task.completed ? 'bg-green-500 border-green-500 text-white' : 'border-gray-300 text-transparent hover:border-indigo-500'"
+                        >
+                            <i class="fas fa-check text-xs"></i>
+                        </button>
+                        
+                        <div class="flex-1">
+                            <p :class="['text-lg transition', task.completed ? 'completed-line' : 'text-gray-800']">
+                                {{ task.title }}
+                            </p>
+                            <p v-if="task.description" class="text-sm text-gray-400">{{ task.description }}</p>
+                            <p v-if="task.created_at" class="text-xs text-gray-300 mt-1">
+                                Creato: {{ new Date(task.created_at).toLocaleDateString() }}
+                            </p>
+                        </div>
+                    </div>
+
+                    <button 
+                        @click="deleteTask(task.id)" 
+                        class="text-gray-300 hover:text-red-500 p-2 transition opacity-0 group-hover:opacity-100"
+                        title="Elimina"
+                    >
+                        <i class="fas fa-trash"></i>
+                    </button>
+                </div>
+            </transition-group>
+        </div>
+        
+        <div class="mt-10 text-center text-gray-400 text-sm">
+            API Endpoint: <span class="font-mono bg-gray-200 px-1 rounded">{{ apiUrl }}</span>
+        </div>
+        <div class="text-center text-gray-400 text-sm">
+            Version: <span class="font-mono bg-gray-200 px-1 rounded">0.1.0</span>
+        </div>
+
+    </div>
+
+    <script>
+        const { createApp } = Vue;
+
+        createApp({
+            data() {
+                return {
+                    apiUrl: 'http://localhost:8000/api',
+                    tasks: [],
+                    newTaskTitle: '',
+                    newTaskDescription: '',
+                    currentFilter: 'all',
+                    loading: false,
+                    filters: ['all', 'active', 'completed'],
+                    labels: {
+                        all: 'Tutti',
+                        active: 'Da fare',
+                        completed: 'Completati'
+                    },
+                    apiError: ''
+                }
+            },
+            computed: {
+                filteredTasks() {
+                    return this.tasks;
+                },
+                activeCount() {
+                    return this.tasks.filter(t => !t.completed).length;
+                }
+            },
+            methods: {
+                handleError(error, context) {
+                    this.loading = false;
+                    console.error(`Errore API (${context}):`, error);
+                    let message = error.message || "Errore sconosciuto durante l'operazione.";
+
+                    if (message.includes('Failed to fetch')) {
+                        message = "Impossibile connettersi al backend. Assicurati che il server sia in esecuzione su http://localhost:8000.";
+                    }
+                    this.apiError = message;
+                },
+
+                changeFilter(newFilter) {
+                    this.apiError = '';
+                    this.currentFilter = newFilter;
+                    this.fetchTasks();
+                },
+
+                async fetchTasks() {
+                    this.loading = true;
+                    this.apiError = '';
+
+                    let url = `${this.apiUrl}/tasks`;
+                    
+                    if (this.currentFilter === 'active') {
+                        // Da fare = completed=false
+                        url += '?completed=false';
+                    } else if (this.currentFilter === 'completed') {
+                        // Completati = completed=true
+                        url += '?completed=true';
+                    }
+
+                    try {
+                        const response = await fetch(url);
+                        if (!response.ok) throw new Error(`Errore caricamento task: Codice ${response.status}`);
+                        this.tasks = await response.json();
+                    } catch (error) {
+                        this.handleError(error, "fetchTasks");
+                    } finally {
+                        this.loading = false;
+                    }
+                },
+                
+                async addTask() {
+                    if (!this.newTaskTitle.trim()) return;
+
+                    const payload = {
+                        title: this.newTaskTitle,
+                        description: this.newTaskDescription.trim() || null,
+                        completed: false
+                    };
+                    
+                    this.apiError = '';
+
+                    try {
+                        const response = await fetch(`${this.apiUrl}/tasks`, {
+                            method: 'POST',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+                        
+                        if (response.ok) {
+                            this.newTaskTitle = '';
+                            this.newTaskDescription = '';
+                            this.fetchTasks(); 
+                        } else {
+                            const errorData = await response.json().catch(() => response.text());
+                            let errorDetail = '';
+                            if (typeof errorData === 'object' && errorData !== null && errorData.detail) {
+                                if (Array.isArray(errorData.detail)) {
+                                    errorDetail = errorData.detail.map(d => `${d.loc.join('.')}: ${d.msg}`).join('; ');
+                                } else {
+                                    errorDetail = errorData.detail;
+                                }
+                            } else if (typeof errorData === 'string') {
+                                errorDetail = errorData;
+                            } else {
+                                errorDetail = JSON.stringify(errorData);
+                            }
+                            throw new Error(`Creazione fallita: ${errorDetail}`);
+                        }
+                    } catch (error) {
+                        this.handleError(error, "addTask");
+                    }
+                },
+                
+                async toggleTask(task) {
+                    const originalStatus = task.completed;
+                    task.completed = !originalStatus;
+
+                    const payload = {
+                        title: task.title,
+                        description: task.description,
+                        completed: task.completed
+                    };
+                    
+                    this.apiError = '';
+
+                    try {
+                        const response = await fetch(`${this.apiUrl}/tasks/${task.id}`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(payload)
+                        });
+                        
+                        if (response.ok) {
+                            this.fetchTasks(); 
+                        } else {
+                            task.completed = originalStatus;
+                            throw new Error(`Aggiornamento fallito: Codice ${response.status}`);
+                        }
+                    } catch (error) {
+                        task.completed = originalStatus;
+                        this.handleError(error, "toggleTask");
+                    }
+                },
+                
+                async deleteTask(id) {
+                    this.apiError = '';
+
+                    try {
+                        const response = await fetch(`${this.apiUrl}/tasks/${id}`, {
+                            method: 'DELETE'
+                        });
+
+                        if (response.ok) {
+                            this.tasks = this.tasks.filter(t => t.id !== id);
+                        } else {
+                            throw new Error(`Cancellazione fallita: Codice ${response.status}`);
+                        }
+                    } catch (error) {
+                        this.handleError(error, "deleteTask");
+                    }
+                }
+            },
+            mounted() {
+                this.fetchTasks();
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
